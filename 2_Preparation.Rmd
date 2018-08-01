@@ -1,0 +1,230 @@
+---
+title: "Data Preparation, Ta-Feng"
+author: "卓雍然, D994010001, 2018/07/26"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+<br>
+
+```{r echo=T, message=F, cache=F, warning=F}
+Sys.setlocale("LC_ALL","C")
+library(dplyr)
+library(ggplot2)
+library(caTools)
+```
+<br><hr>
+
+### Preparing The Predictors (X)
+
+```{r}
+rm(list=ls(all=TRUE))
+load("data/tf0.rdata")
+```
+
+##### The Demarcation Date
+Remove data after the demarcation date
+```{r}
+feb01 = as.Date("2001-02-01")
+Z = subset(Z0, date < feb01)    # 618212
+```
+
+##### Aggregate for the Transaction Records
+```{r}
+X = group_by(Z, tid) %>% summarise(
+  date = first(date),  # 交易日期
+  cust = first(cust),  # 顧客 ID
+  age = first(age),    # 顧客 年齡級別
+  area = first(area),  # 顧客 居住區別
+  items = n(),                        # 交易項目(總)數
+  pieces = sum(qty),                  # 產品(總)件數
+  total = sum(qty * price),           # 交易(總)金額
+  gross = sum(qty * (price - cost))   # 毛利
+  ) %>% data.frame  # 88387
+```
+
+```{r}
+summary(X)
+```
+
+##### Check Quantile and Remove Outlier 
+```{r}
+sapply(X[,6:9], quantile, prob=c(.999, .9995, .9999))
+```
+
+```{r}
+X = subset(X, items<=64 & pieces<=98 & total<=46909) # 88387 -> 88292
+```
+
+##### Aggregate for Customer Records
+```{r}
+d0 = max(X$date)
+A = group_by(X, cust) %>% summarise(
+  r = 1 + as.integer(difftime(d0, max(date), units="days")), # recency
+  s = 1 + as.integer(difftime(d0, min(date), units="days")), # seniority
+  f = n(),            # frquency
+  m = mean(total),    # monetary
+  rev = sum(total),   # total revenue contribution
+  raw = sum(gross),   # total gross profit contribution
+  age = first(age),   # age group
+  area = first(area), # area code
+  ) %>% data.frame    # 28584
+```
+<br><br><hr>
+
+### Preparing the Target Variables (Y)
+
+##### Aggregate Feb's Transaction by Customer
+```{r}
+feb = filter(X0, date>= feb01) %>% group_by(cust) %>% 
+  summarise(amount = sum(total))  # 16899
+```
+
+##### The Target for Regression - `A$amount`
+Simply a Left Joint
+```{r}
+A = merge(A, feb, by="cust", all.x=T)
+```
+
+##### The Target for Classification - `A$buy`
+```{r}
+A$buy = !is.na(A$amount)
+```
+
+##### Summary of the Dataset
+```{r}
+summary(A)
+```
+
+##### The Association of Categorial Predictors
+```{r}
+tapply(A$buy, A$age, mean)
+```
+
+```{r}
+tapply(A$buy, A$area, mean)
+```
+
+##### A Good Save Point
+```{r}
+save(Z, X, A, file="data/tf1.rdata")
+```
+<br><br><hr>
+
+### Spliting the Data
+```{r}
+set.seed(1111); spl=sample.split(A$buy, SplitRatio=0.7)
+TR = subset(A, spl)
+TS = subset(A, !spl)
+```
+
+##### How the Factors are Splited 
+```{r}
+table(spl, A$buy) %>% prop.table(1) %>% round(2)
+```
+
+
+```{r}
+table(spl, A$age) %>% prop.table(1) %>% round(2)
+```
+
+```{r}
+table(spl, A$area) %>% prop.table(1) %>% round(2)
+```
+<br><br><hr>
+
+### Classification Model
+
+<br><br><br><hr>
+
+### Regression Model
+
+<br><br><br><hr>
+
+### Feature Engineering
+
+Before we do the modeling ..... 
+
+**【Q】** _Can we make some more predictors from the data?_ 
+
++
++
+
+**【Q】** _Is there Difference between weekend and weekday shopper?_ 
+
++
++
+
+**【Q】** _Can we predict customers behavior from what they have bought?_ 
+
++
++
+
+**【Q】** _How can we make and incorporate these potential predictors?_ 
+
++
++
+
+
+
+<br><br><br><br><hr><br><br><br>
+
+<style>
+.caption {
+  color: #777;
+  margin-top: 10px;
+}
+p code {
+  white-space: inherit;
+}
+pre {
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1;
+}
+pre code {
+  white-space: inherit;
+}
+p,li {
+  font-family: "Trebuchet MS", "微軟正黑體", "Microsoft JhengHei";
+}
+
+.r{
+  line-height: 1.2;
+}
+
+title{
+  color: #cc0000;
+  font-family: "Trebuchet MS", "微軟正黑體", "Microsoft JhengHei";
+}
+
+body{
+  font-family: "Trebuchet MS", "微軟正黑體", "Microsoft JhengHei";
+}
+
+h1,h2,h3,h4,h5{
+  color: #008800;
+  font-family: "Trebuchet MS", "微軟正黑體", "Microsoft JhengHei";
+}
+
+h3{
+  color: #b36b00;
+  background: #ffe0b3;
+  line-height: 2;
+  font-weight: bold;
+}
+
+h5{
+  color: #006000;
+  background: #ffffe0;
+  line-height: 2;
+  font-weight: bold;
+}
+
+em{
+  color: #0000c0;
+  background: #f0f0f0;
+  }
+</style>
+
